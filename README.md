@@ -1,64 +1,33 @@
 # VHosts-Go
 
-A fast and concurrent virtual host scanner written in Go. This tool helps discover virtual hosts (vhosts) by sending HTTP requests with different Host headers and analyzing the responses.
+Fast virtual host scanner that finds hidden vhosts and identifies which ones are only accessible through Host header manipulation.
 
-## Features
-
-- Fast concurrent scanning with rate limiting
-- Automatic learning phase to detect baseline behavior
-- Smart detection of unstable responses
-- Colored output with detailed logging
-- JSON output format
-- Support for both HTTP and HTTPS
-- Configurable concurrency
-
-## Installation
-
+## Install
 ```bash
-go install github.com/yourusername/vhosts-go@latest
-```
-
-Or build from source:
-
-```bash
-git clone https://github.com/yourusername/vhosts-go.git
-cd vhosts-go
-go build
+go install github.com/bebiksior/vhosts-go@latest
 ```
 
 ## Usage
+Two modes available:
 
 ```bash
-./vhosts-go -h hosts.txt -w wordlist.txt -o output.txt [--debug]
+# Discover vhosts
+./vhosts-go -h hosts.txt -w wordlist.txt -o out.json -c 10 discover
+
+# Find shadow vhosts (only accessible via Host header), takes output from discover mode as input
+./vhosts-go -i out.json -o shadows.json -c 10 shadow
 ```
 
-### Parameters
+### Flags
+- `-h` - Hosts file (one per line)
+- `-w` - Wordlist file
+- `-o` - Output file
+- `-i` - Input file (for shadow mode)
+- `-c` - Concurrent requests (default: 10)
+- `--debug` - Enable debug output
 
-- `-h`: Path to hosts file (one host per line)
-- `-w`: Path to wordlist file (subdomains to test)
-- `-o`: Output file path (JSON format)
-- `--debug`: Enable debug output
-
-### Input File Formats
-
-hosts.txt:
-```
-https://example.com
-https://another-domain.com
-```
-
-wordlist.txt:
-```
-admin
-dev
-staging
-test
-```
-
-### Output Format
-
-The tool generates a JSON file with the following structure:
-
+### Example Output
+Discover mode:
 ```json
 [
   {
@@ -71,14 +40,26 @@ The tool generates a JSON file with the following structure:
 ]
 ```
 
-## How it Works
+Shadow mode:
+```json
+[
+  {
+    "host": "https://example.com",
+    "shadow_vhosts": [
+      "internal.example.com",
+      "staging.example.com"
+    ]
+  }
+]
+```
 
-1. For each target host, the tool performs a learning phase by sending requests with random Host headers
-2. It analyzes the responses to determine if status codes and content lengths are stable
-3. For each subdomain in the wordlist, it sends a request with the subdomain as the Host header
-4. If the response differs from the baseline (and the difference is reliable), it's marked as a potential virtual host
-5. Results are saved in JSON format
+## Features
+- Fast concurrent scanning
+- Smart baseline detection
+- Progress bars
+- Shadow vhost detection
+- JSON output
+- HTTP/HTTPS support
 
 ## License
-
-MIT License
+MIT
