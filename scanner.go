@@ -152,7 +152,7 @@ func (s *Scanner) scanHost(host string, wordlist []string) {
 	}
 
 	var wg sync.WaitGroup
-	semaphore := make(chan struct{}, 20)
+	semaphore := make(chan struct{}, 10)
 	resultsChan := make(chan string, len(wordlist))
 
 	for _, word := range wordlist {
@@ -257,6 +257,10 @@ func (s *Scanner) checkVHost(targetURL, vhost string, baseline *BaselineResult) 
 	bodyStr := string(body)
 	s.log.Debugf("Response for %s - Status: %d, Body length: %d, Body preview: %.100s...",
 		vhost, resp.StatusCode, len(body), bodyStr)
+
+	if strings.Contains(string(body), "<TITLE>Access Denied</TITLE>") && resp.StatusCode == 403 && strings.Contains(string(body), "errors&#46;edgesuite&#46;net") {
+		return false
+	}
 
 	if len(baseline.statusCodes) > 1 {
 		s.log.Debugf("Status code is unstable for %s, ignoring status code checks", targetURL)
