@@ -31,7 +31,6 @@ type Scanner struct {
 	shadows      []ShadowResult
 	mu           sync.Mutex
 	hostBar      *progressbar.ProgressBar
-	wordlistBar  *progressbar.ProgressBar
 }
 
 type ScanResult struct {
