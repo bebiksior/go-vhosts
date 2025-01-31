@@ -2,6 +2,10 @@
 
 Fast virtual host scanner that finds hidden vhosts and identifies which ones are only accessible through Host header manipulation.
 
+> [!NOTE]
+> This tool is currently in beta
+
+
 ## Install
 ```bash
 go install github.com/bebiksior/vhosts-go@latest
@@ -12,10 +16,10 @@ Two modes available:
 
 ```bash
 # Discover vhosts
-./vhosts-go -h hosts.txt -w wordlist.txt -o out.json -c 10 discover
+vhosts-go -h hosts.txt -w wordlist.txt -o out.json -c 10 discover
 
 # Find shadow vhosts (only accessible via Host header), takes output from discover mode as input
-./vhosts-go -i out.json -o shadows.json -c 10 shadow
+vhosts-go -i out.json -o shadows.json -c 10 shadow
 ```
 
 ### Flags
