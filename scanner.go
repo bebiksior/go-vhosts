@@ -148,7 +148,7 @@ func (s *Scanner) scanHost(host string, wordlist []string) {
 		return
 	}
 
-	baseline := s.performLearningPhase(host)
+	baseline := s.performLearningPhase(host, wordlist)
 	if baseline == nil {
 		s.log.Warnf("Learning phase failed for %s, skipping...", host)
 		return
@@ -205,23 +205,33 @@ func (s *Scanner) scanHost(host string, wordlist []string) {
 	}
 	s.mu.Unlock()
 }
-
-func (s *Scanner) performLearningPhase(host string) *BaselineResult {
+func (s *Scanner) performLearningPhase(host string, wordlist []string) *BaselineResult {
 	baseline := &BaselineResult{
 		statusCodes:    make(map[int]int),
 		contentLengths: make(map[int64]int),
 	}
 
-	baseDomain := extractDomain(host)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	for i := 0; i < 3; i++ {
+	randomWords := make([]string, 0)
+	if len(wordlist) > 0 {
+		for i := 0; i < 3 && i < len(wordlist); i++ {
+			randomIndex := rand.Intn(len(wordlist))
+			randomWords = append(randomWords, wordlist[randomIndex])
+		}
+	}
+	for i := 0; i < len(randomWords); i++ {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
 
-			randomHost := fmt.Sprintf("random%d-%d.%s", index, rand.Int(), baseDomain)
+			var randomHost string
+			if index == 2 {
+				randomHost = fmt.Sprintf("%s-rand-%d", randomWords[index], rand.Intn(1000))
+			} else {
+				randomHost = fmt.Sprintf("%s-rand%d", randomWords[index], rand.Intn(1000))
+			}
 			resp, err := s.makeRequest(host, randomHost)
 			if err != nil {
 				return
