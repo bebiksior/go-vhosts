@@ -29,6 +29,7 @@ vhosts-go -i out.json -o shadows.json -c 10 shadow
 - `-i` - Input file (for shadow mode)
 - `-c` - Concurrent requests (default: 10)
 - `--debug` - Enable debug output
+- `--proxy` - Proxy URL (e.g. http://127.0.0.1:8080)
 
 ### Example Output
 Discover mode:

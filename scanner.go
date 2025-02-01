@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -53,6 +54,16 @@ func NewScanner(hostsFile, wordlistFile, outputFile string, concurrency int, log
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		MaxIdleConns:    100,
 		IdleConnTimeout: 10 * time.Second,
+	}
+
+	// Configure proxy if URL is provided
+	if proxyURL != "" {
+		if proxyURLParsed, err := url.Parse(proxyURL); err == nil {
+			tr.Proxy = http.ProxyURL(proxyURLParsed)
+			log.Debugf("Using proxy: %s", proxyURL)
+		} else {
+			log.Warnf("Invalid proxy URL provided: %v", err)
+		}
 	}
 
 	client := &http.Client{
@@ -372,19 +383,24 @@ func extractDomain(urlStr string) string {
 }
 
 func (s *Scanner) StartShadow() error {
+	s.log.Debug("Starting shadow vhost detection")
 	if err := s.saveResults(); err != nil {
+		s.log.Errorf("Failed to initialize results file: %v", err)
 		return fmt.Errorf("failed to initialize results file: %v", err)
 	}
 
 	data, err := os.ReadFile(s.inputFile)
 	if err != nil {
+		s.log.Errorf("Failed to read input file %s: %v", s.inputFile, err)
 		return fmt.Errorf("failed to read input file: %v", err)
 	}
 
 	var results []ScanResult
 	if err := json.Unmarshal(data, &results); err != nil {
+		s.log.Errorf("Failed to parse input JSON: %v", err)
 		return fmt.Errorf("failed to parse input JSON: %v", err)
 	}
+	s.log.Debugf("Loaded %d results from input file", len(results))
 
 	totalHosts := len(results)
 	s.hostBar = progressbar.NewOptions(totalHosts,
@@ -402,6 +418,7 @@ func (s *Scanner) StartShadow() error {
 
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, s.concurrency)
+	s.log.Debugf("Using concurrency level of %d", s.concurrency)
 
 	for _, result := range results {
 		wg.Add(1)
@@ -420,20 +437,43 @@ func (s *Scanner) StartShadow() error {
 
 	wg.Wait()
 	fmt.Println()
+	s.log.Debug("Shadow vhost detection completed")
 
 	return s.saveResults()
 }
 
 func (s *Scanner) checkShadowVHosts(result ScanResult) {
-	var shadowVHosts []string
+	s.log.Debugf("Checking shadow vhosts for host: %s", result.Host)
+
+	semaphore := make(chan struct{}, 5)
+	var wg sync.WaitGroup
+	shadowChan := make(chan string, len(result.VHosts))
 
 	for _, vhost := range result.VHosts {
-		if !s.isVHostDirectlyAccessible(vhost) {
-			shadowVHosts = append(shadowVHosts, vhost)
-		}
+		wg.Add(1)
+		semaphore <- struct{}{}
+		go func(vhost string) {
+			defer wg.Done()
+			defer func() { <-semaphore }()
+			s.log.Debugf("Testing vhost %s for direct accessibility", vhost)
+			if !s.isVHostDirectlyAccessible(vhost) {
+				s.log.Debugf("Found shadow vhost: %s", vhost)
+				shadowChan <- vhost
+			}
+		}(vhost)
+	}
+
+	// Wait for all routines to finish and close the channel
+	wg.Wait()
+	close(shadowChan)
+
+	var shadowVHosts []string
+	for sh := range shadowChan {
+		shadowVHosts = append(shadowVHosts, sh)
 	}
 
 	if len(shadowVHosts) > 0 {
+		s.log.Debugf("Found %d shadow vhosts for %s", len(shadowVHosts), result.Host)
 		s.mu.Lock()
 		s.shadows = append(s.shadows, ShadowResult{
 			Host:         result.Host,
@@ -443,22 +483,43 @@ func (s *Scanner) checkShadowVHosts(result ScanResult) {
 			s.log.Warnf("Failed to save shadow results for host %s: %v", result.Host, err)
 		}
 		s.mu.Unlock()
+	} else {
+		s.log.Debugf("No shadow vhosts found for %s", result.Host)
 	}
 }
 
 func (s *Scanner) isVHostDirectlyAccessible(vhost string) bool {
+	s.log.Debugf("Testing direct accessibility of %s", vhost)
+
+	ips, err := net.LookupHost(vhost)
+	if err != nil || len(ips) == 0 {
+		s.log.Debugf("DNS resolution failed for %s: %v", vhost, err)
+		return false
+	}
+
 	httpsURL := fmt.Sprintf("https://%s", vhost)
+	s.log.Debugf("Trying HTTPS connection to %s", httpsURL)
 	if s.canConnect(httpsURL) {
+		s.log.Debugf("Successfully connected to %s via HTTPS", httpsURL)
 		return true
 	}
 
 	httpURL := fmt.Sprintf("http://%s", vhost)
-	return s.canConnect(httpURL)
+	s.log.Debugf("Trying HTTP connection to %s", httpURL)
+	result := s.canConnect(httpURL)
+	if result {
+		s.log.Debugf("Successfully connected to %s via HTTP", httpURL)
+	} else {
+		s.log.Debugf("Failed to connect to %s via both HTTPS and HTTP", vhost)
+	}
+	return result
 }
 
 func (s *Scanner) canConnect(urlStr string) bool {
+	s.log.Debugf("Attempting connection to %s", urlStr)
 	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
+		s.log.Debugf("Failed to create request for %s: %v", urlStr, err)
 		return false
 	}
 
@@ -470,12 +531,21 @@ func (s *Scanner) canConnect(urlStr string) bool {
 		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
 		ForceAttemptHTTP2: false,
 		MaxIdleConns:      100,
-		IdleConnTimeout:   10 * time.Second,
+		IdleConnTimeout:   6 * time.Second,
+	}
+
+	if proxyURL != "" {
+		if proxyURLParsed, err := url.Parse(proxyURL); err == nil {
+			tr.Proxy = http.ProxyURL(proxyURLParsed)
+			log.Debugf("Using proxy: %s", proxyURL)
+		} else {
+			log.Warnf("Invalid proxy URL provided: %v", err)
+		}
 	}
 
 	client := &http.Client{
 		Transport: tr,
-		Timeout:   10 * time.Second,
+		Timeout:   6 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -488,13 +558,17 @@ func (s *Scanner) canConnect(urlStr string) bool {
 				strings.Contains(err.Error(), "no such host") ||
 				strings.Contains(err.Error(), "cannot assign requested address") ||
 				strings.Contains(err.Error(), "network is unreachable") {
+				s.log.Debugf("Connection failed with expected error: %v", err)
 				return false
 			}
+			s.log.Debugf("Connection failed with unexpected error: %v", err)
 			return true
 		}
+		s.log.Debugf("Connection failed with non-URL error: %v", err)
 		return true
 	}
 	defer resp.Body.Close()
 
+	s.log.Debugf("Successfully connected to %s with status code %d", urlStr, resp.StatusCode)
 	return true
 }

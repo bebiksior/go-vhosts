@@ -16,6 +16,7 @@ var (
 	debug        bool
 	concurrency  int
 	mode         string
+	proxyURL     string
 	log          *logrus.Logger
 )
 
@@ -34,6 +35,7 @@ func main() {
 	flag.StringVar(&wordlistFile, "w", "", "Path to wordlist file (required for discover mode)")
 	flag.StringVar(&outputFile, "o", "", "Path to output file (required)")
 	flag.StringVar(&inputFile, "i", "", "Path to input file (required for shadow mode)")
+	flag.StringVar(&proxyURL, "proxy", "", "Proxy URL (e.g. http://127.0.0.1:8080)")
 	flag.BoolVar(&debug, "debug", false, "Enable debug output")
 	flag.IntVar(&concurrency, "c", 10, "Number of concurrent requests")
 	flag.Parse()
