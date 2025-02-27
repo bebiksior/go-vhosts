@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"slices"
 	"sync"
@@ -426,4 +427,51 @@ func (s *Scanner) filterDiscoveredVhosts(results []ScanResult) []ScanResult {
 	}
 
 	return discoveredResults
+}
+func (s *Scanner) isVHostDirectlyAccessible(vhost string) bool {
+	_, err := net.LookupHost(vhost)
+	if err != nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	url := fmt.Sprintf("http://%s", vhost)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return false
+	}
+
+	req.Header.Set("User-Agent", s.Options.UserAgent)
+
+	for key, value := range s.Options.CustomHeaders {
+		req.Header.Set(key, value)
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		url = fmt.Sprintf("https://%s", vhost)
+		req, err = http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return false
+		}
+
+		req.Header.Set("User-Agent", s.Options.UserAgent)
+
+		for key, value := range s.Options.CustomHeaders {
+			req.Header.Set(key, value)
+		}
+
+		resp, err = s.client.Do(req)
+		if err != nil {
+			return false
+		}
+	}
+
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	return resp != nil && resp.StatusCode > 0
 }

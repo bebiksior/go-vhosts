@@ -18,10 +18,11 @@ func (s *Scanner) SaveResultsIncremental(results []ScanResult) error {
 	}
 
 	type VHostInfo struct {
-		VHost      string `json:"vhost"`
-		StatusCode int    `json:"status_code"`
-		Title      string `json:"title"`
-		Length     int    `json:"content_length"`
+		VHost        string `json:"vhost"`
+		StatusCode   int    `json:"status_code"`
+		Title        string `json:"title"`
+		Length       int    `json:"content_length"`
+		IsAccessible bool   `json:"is_accessible"`
 	}
 
 	type TargetResult struct {
@@ -66,11 +67,14 @@ func (s *Scanner) SaveResultsIncremental(results []ScanResult) error {
 			}
 		}
 
+		isAccessible := s.isVHostDirectlyAccessible(result.VHost)
+
 		vhostInfo := VHostInfo{
-			VHost:      result.VHost,
-			StatusCode: result.Response.StatusCode,
-			Title:      result.Response.Title,
-			Length:     result.Response.Length,
+			VHost:        result.VHost,
+			StatusCode:   result.Response.StatusCode,
+			Title:        result.Response.Title,
+			Length:       result.Response.Length,
+			IsAccessible: isAccessible,
 		}
 
 		targetMap[result.Target].VHosts = append(targetMap[result.Target].VHosts, vhostInfo)
@@ -110,13 +114,21 @@ func (s *Scanner) printResult(result ScanResult) {
 		s.progressBar.Clear()
 	}
 
+	isAccessible := s.isVHostDirectlyAccessible(result.VHost)
+
+	accessibleStr := "✓"
+	if !isAccessible {
+		accessibleStr = "✗"
+	}
+
 	var resultStr string
 	if s.Options.Silent {
-		resultStr = fmt.Sprintf("[%d] %s - %s - %s",
+		resultStr = fmt.Sprintf("[%d] %s - %s - %s [Accessible: %s]",
 			result.Response.StatusCode,
 			result.Target,
 			result.VHost,
 			result.Response.Title,
+			accessibleStr,
 		)
 	} else {
 		statusColor := color.New(color.FgGreen)
@@ -126,11 +138,17 @@ func (s *Scanner) printResult(result ScanResult) {
 			statusColor = color.New(color.FgYellow)
 		}
 
-		resultStr = fmt.Sprintf("%s - %s [%s] [%s]",
+		accessibleColor := color.New(color.FgGreen)
+		if !isAccessible {
+			accessibleColor = color.New(color.FgRed)
+		}
+
+		resultStr = fmt.Sprintf("%s - %s [%s] [%s] [Accessible: %s]",
 			color.YellowString(result.Target),
 			color.CyanString(result.VHost),
 			statusColor.Sprintf("%d", result.Response.StatusCode),
 			color.WhiteString(result.Response.Title),
+			accessibleColor.Sprint(accessibleStr),
 		)
 	}
 
