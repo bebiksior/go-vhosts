@@ -5,7 +5,7 @@ A fast virtual host scanner written in Go.
 ## Installation
 
 ```bash
-go install github.com/bebiksior/vhosts-go@latest
+go install github.com/bebiksior/go-vhosts@latest
 ```
 
 ## Usage
