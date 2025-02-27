@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"go-vhosts/pkg/utils"
 	"net/http"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/bebiksior/go-vhosts/pkg/utils"
 
 	"github.com/schollz/progressbar/v3"
 )

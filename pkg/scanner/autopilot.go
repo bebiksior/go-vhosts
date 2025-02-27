@@ -1,8 +1,9 @@
 package scanner
 
 import (
-	"go-vhosts/pkg/utils"
 	"strings"
+
+	"github.com/bebiksior/go-vhosts/pkg/utils"
 )
 
 func (s *Scanner) onVHostHit(target string, isVHost bool, vhost string) {

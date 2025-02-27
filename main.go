@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"go-vhosts/pkg/scanner"
-	"go-vhosts/pkg/utils"
+	"github.com/bebiksior/go-vhosts/pkg/utils"
+
+	"github.com/bebiksior/go-vhosts/pkg/scanner"
 )
 
 func main() {

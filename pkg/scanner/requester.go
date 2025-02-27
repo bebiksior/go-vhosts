@@ -1,9 +1,10 @@
 package scanner
 
 import (
-	"go-vhosts/pkg/utils"
 	"io"
 	"net/http"
+
+	"github.com/bebiksior/go-vhosts/pkg/utils"
 )
 
 func (s *Scanner) sendRequest(target string, vhost string) (Response, error) {

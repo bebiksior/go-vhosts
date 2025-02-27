@@ -1,8 +1,9 @@
 package scanner
 
 import (
-	"go-vhosts/pkg/utils"
 	"slices"
+
+	"github.com/bebiksior/go-vhosts/pkg/utils"
 )
 
 type BaselineResponse struct {

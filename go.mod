@@ -1,4 +1,4 @@
-module go-vhosts
+module github.com/bebiksior/go-vhosts
 
 go 1.24.0
 
