@@ -5,86 +5,98 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
+	"go-vhosts/pkg/scanner"
+	"go-vhosts/pkg/utils"
 )
-
-var (
-	hostsFile    string
-	wordlistFile string
-	outputFile   string
-	inputFile    string
-	debug        bool
-	concurrency  int
-	mode         string
-	proxyURL     string
-	log          *logrus.Logger
-)
-
-func init() {
-	// Initialize logger
-	log = logrus.New()
-	log.SetFormatter(&logrus.TextFormatter{
-		ForceColors:   true,
-		FullTimestamp: true,
-	})
-}
 
 func main() {
-	// Parse command line flags
-	flag.StringVar(&hostsFile, "h", "", "Path to hosts file (required for discover mode)")
-	flag.StringVar(&wordlistFile, "w", "", "Path to wordlist file (required for discover mode)")
-	flag.StringVar(&outputFile, "o", "", "Path to output file (required)")
-	flag.StringVar(&inputFile, "i", "", "Path to input file (required for shadow mode)")
-	flag.StringVar(&proxyURL, "proxy", "", "Proxy URL (e.g. http://127.0.0.1:8080)")
-	flag.BoolVar(&debug, "debug", false, "Enable debug output")
-	flag.IntVar(&concurrency, "c", 10, "Number of concurrent requests")
+	// Flags
+	targetURL := flag.String("u", "", "Target URL (e.g., https://example.com)")
+	targetFile := flag.String("l", "", "Path to file containing target URLs (one per line)")
+	wordlistPath := flag.String("w", "", "Path to wordlist file")
+	threads := flag.Int("t", 25, "Number of concurrent threads per target")
+	concurrentHosts := flag.Int("c", 5, "Number of targets to scan concurrently")
+	silent := flag.Bool("silent", false, "Disable colored output")
+	noProgress := flag.Bool("no-progress", false, "Disable progress bar")
+	userAgent := flag.String("ua", "go-vhosts/1.0", "User-Agent string")
+	proxy := flag.String("proxy", "", "Proxy URL (e.g., http://127.0.0.1:8080)")
+	autopilot := flag.Bool("autopilot", true, "Enable autopilot mode to detect and skip unstable hosts")
+	outputFile := flag.String("o", "", "Output results to JSON file")
+	headers := make(utils.HeadersFlag)
+	flag.Var(&headers, "H", "Custom header in format \"Name: Value\" (can be used multiple times)")
+
 	flag.Parse()
 
-	// Get the mode from remaining arguments
-	args := flag.Args()
-	if len(args) != 1 || (args[0] != "discover" && args[0] != "shadow") {
-		fmt.Println("Usage:")
-		fmt.Println("  Discover mode: ./vhosts-go -h hosts.txt -w wordlist.txt -o output.json -c 10 discover")
-		fmt.Println("  Shadow mode: ./vhosts-go -i input.json -o shadows.json -c 10 shadow")
+	// Check if required flags are provided
+	if (*targetURL == "" && *targetFile == "") || *wordlistPath == "" {
+		fmt.Println("Error: Either Target URL (-u) or Target File (-l) must be provided along with wordlist (-w)")
+		flag.Usage()
 		os.Exit(1)
 	}
-	mode = args[0]
 
-	// Validate required flags based on mode
-	if mode == "discover" {
-		if hostsFile == "" || wordlistFile == "" || outputFile == "" {
-			fmt.Println("Error: hosts file (-h), wordlist file (-w), and output file (-o) are required for discover mode")
-			flag.Usage()
+	// Load targets
+	var targets []string
+	if *targetURL != "" {
+		// Single target from command line
+		targets = append(targets, utils.NormalizeURL(*targetURL))
+	}
+
+	if *targetFile != "" {
+		// Multiple targets from file
+		fileTargets, err := utils.LoadWordlist(*targetFile)
+		if err != nil {
+			fmt.Printf("Error loading target file: %s\n", err)
 			os.Exit(1)
 		}
-	} else if mode == "shadow" {
-		if inputFile == "" || outputFile == "" {
-			fmt.Println("Error: input file (-i) and output file (-o) are required for shadow mode")
-			flag.Usage()
-			os.Exit(1)
+
+		for _, target := range fileTargets {
+			if target != "" {
+				targets = append(targets, utils.NormalizeURL(target))
+			}
 		}
 	}
 
-	// Set log level based on debug flag
-	if debug {
-		log.SetLevel(logrus.DebugLevel)
-	} else {
-		log.SetLevel(logrus.InfoLevel)
+	if len(targets) == 0 {
+		fmt.Println("Error: No valid targets found")
+		os.Exit(1)
 	}
 
-	// Create scanner with appropriate configuration
-	scanner := NewScanner(hostsFile, wordlistFile, outputFile, concurrency, log)
-	scanner.inputFile = inputFile
-
-	// Run the appropriate mode
-	var err error
-	if mode == "discover" {
-		err = scanner.Start()
-	} else {
-		err = scanner.StartShadow()
-	}
-
+	// Load wordlist
+	wordlist, err := utils.LoadWordlist(*wordlistPath)
 	if err != nil {
-		log.Fatalf("Scanning failed: %v", err)
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	// Create scanner options
+	options := scanner.ScanOptions{
+		Targets:         targets,
+		Wordlist:        wordlist,
+		Threads:         *threads,
+		ConcurrentHosts: *concurrentHosts,
+		Silent:          *silent,
+		NoProgress:      *noProgress,
+		UserAgent:       *userAgent,
+		CustomHeaders:   headers,
+		Proxy:           *proxy,
+		AutoPilot:       *autopilot,
+	}
+
+	// Create and start scanner
+	scannerInstance := scanner.NewScanner(options)
+
+	// Set output file for incremental saving
+	if *outputFile != "" {
+		scannerInstance.OutputFile = *outputFile
+	}
+
+	results := scannerInstance.Start()
+
+	// Print summary
+	if !*silent {
+		fmt.Printf("\nScan completed. Found %d virtual hosts.\n", len(results))
+		if *outputFile != "" {
+			fmt.Printf("Results saved to %s\n", *outputFile)
+		}
 	}
 }

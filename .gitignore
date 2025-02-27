@@ -1,3 +1,4 @@
-test_output.json
-bin/*
-test/*
+test-server
+.cursor
+bin
+.DS_Store
