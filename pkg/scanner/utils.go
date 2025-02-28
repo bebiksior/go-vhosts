@@ -9,7 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sergi/go-diff/diffmatchpatch"
+	"github.com/adrg/strutil"
+	"github.com/adrg/strutil/metrics"
 )
 
 func NormalizeURL(target string) string {
@@ -45,24 +46,8 @@ func ReadByLine(path string) ([]string, error) {
 }
 
 func CalculateSimilarity(text1, text2 string) float64 {
-	dmp := diffmatchpatch.New()
-	diffs := dmp.DiffMain(text1, text2, false)
-
-	matches := 0
-	total := 0
-
-	for _, diff := range diffs {
-		if diff.Type == diffmatchpatch.DiffEqual {
-			matches += len(diff.Text)
-		}
-		total += len(diff.Text)
-	}
-
-	if total == 0 {
-		return 100.0
-	}
-
-	return float64(matches) * 100.0 / float64(total)
+	similarity := strutil.Similarity(text1, text2, metrics.NewJaccard())
+	return similarity * 100.0
 }
 
 func GenerateRandomString(length int) string {

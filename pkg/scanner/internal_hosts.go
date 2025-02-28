@@ -65,14 +65,28 @@ func (s *Scanner) RemoveNonInternalHosts() {
 }
 
 func (s *Scanner) isVHostDirectlyAccessible(vhost string) bool {
+	s.cacheMutex.RLock()
+	result, exists := s.accessibilityCache[vhost]
+	s.cacheMutex.RUnlock()
+
+	if exists {
+		return result
+	}
+
 	ips, err := net.LookupHost(vhost)
 	if err != nil {
+		s.cacheMutex.Lock()
+		s.accessibilityCache[vhost] = false
+		s.cacheMutex.Unlock()
 		return false
 	}
 
 	for _, ip := range ips {
 		parsedIP := net.ParseIP(ip)
 		if parsedIP.IsLoopback() || parsedIP.IsPrivate() {
+			s.cacheMutex.Lock()
+			s.accessibilityCache[vhost] = false
+			s.cacheMutex.Unlock()
 			return false
 		}
 	}
@@ -83,6 +97,9 @@ func (s *Scanner) isVHostDirectlyAccessible(vhost string) bool {
 	url := fmt.Sprintf("http://%s", vhost)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
+		s.cacheMutex.Lock()
+		s.accessibilityCache[vhost] = false
+		s.cacheMutex.Unlock()
 		return false
 	}
 
@@ -91,12 +108,19 @@ func (s *Scanner) isVHostDirectlyAccessible(vhost string) bool {
 	resp, err := s.httpClient.Do(req)
 	if err == nil {
 		defer resp.Body.Close()
-		return resp.StatusCode > 0
+		result := resp.StatusCode > 0
+		s.cacheMutex.Lock()
+		s.accessibilityCache[vhost] = result
+		s.cacheMutex.Unlock()
+		return result
 	}
 
 	url = fmt.Sprintf("https://%s", vhost)
 	req, err = http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
+		s.cacheMutex.Lock()
+		s.accessibilityCache[vhost] = false
+		s.cacheMutex.Unlock()
 		return false
 	}
 
@@ -104,6 +128,9 @@ func (s *Scanner) isVHostDirectlyAccessible(vhost string) bool {
 
 	resp, err = s.httpClient.Do(req)
 	if err != nil {
+		s.cacheMutex.Lock()
+		s.accessibilityCache[vhost] = false
+		s.cacheMutex.Unlock()
 		return false
 	}
 
@@ -111,5 +138,9 @@ func (s *Scanner) isVHostDirectlyAccessible(vhost string) bool {
 		defer resp.Body.Close()
 	}
 
-	return resp != nil && resp.StatusCode > 0
+	result = resp != nil && resp.StatusCode > 0
+	s.cacheMutex.Lock()
+	s.accessibilityCache[vhost] = result
+	s.cacheMutex.Unlock()
+	return result
 }

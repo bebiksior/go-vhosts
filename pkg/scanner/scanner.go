@@ -14,11 +14,13 @@ type Scanner struct {
 	Wordlist []string
 	Options  ScannerOptions
 
-	httpClient   *http.Client
-	requester    *Requester
-	progressBar  *progressbar.ProgressBar
-	totalVHosts  int
-	outputWriter *OutputWriter
+	httpClient         *http.Client
+	requester          *Requester
+	progressBar        *progressbar.ProgressBar
+	totalVHosts        int
+	outputWriter       *OutputWriter
+	accessibilityCache map[string]bool
+	cacheMutex         sync.RWMutex
 }
 
 type ScannerOptions struct {
@@ -31,9 +33,10 @@ type ScannerOptions struct {
 
 func NewScanner(targets []string, wordlist []string, options ScannerOptions) *Scanner {
 	scanner := &Scanner{
-		Targets:  targets,
-		Wordlist: wordlist,
-		Options:  options,
+		Targets:            targets,
+		Wordlist:           wordlist,
+		Options:            options,
+		accessibilityCache: make(map[string]bool),
 	}
 
 	if scanner.Options.Threads <= 0 {
