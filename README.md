@@ -1,4 +1,4 @@
-# vhosts-go
+# go-vhosts
 
 A fast virtual host scanner written in Go.
 
@@ -12,16 +12,16 @@ go install github.com/bebiksior/go-vhosts@latest
 
 ```bash
 # Basic usage
-vhosts-go -u https://example.com -w wordlist.txt
+go-vhosts -u https://example.com -w wordlist.txt
 
 # Scan multiple targets from a file
-vhosts-go -l targets.txt -w wordlist.txt
+go-vhosts -l targets.txt -w wordlist.txt
 
 # Save results to a JSON file
-vhosts-go -u https://example.com -w wordlist.txt -o results.json
+go-vhosts -u https://example.com -w wordlist.txt -o results.json
 
 # Adjust concurrency
-vhosts-go -u https://example.com -w wordlist.txt -t 50 -c 10
+go-vhosts -u https://example.com -w wordlist.txt -t 50 -c 10
 ```
 
 ### Options
