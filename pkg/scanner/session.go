@@ -221,6 +221,10 @@ func (s *Session) isDifferent(response FullResponse) bool {
 		return true
 	}
 
+	if s.Scanner.Options.Minimal {
+		return false
+	}
+
 	isSignificantlyDifferent := true
 	for _, baselineBody := range s.BaselineResponse.Bodies {
 		similarity := CalculateSimilarity(response.Body, baselineBody)

@@ -18,6 +18,7 @@ var args struct {
 	verbose          bool
 	internal         bool
 	outputFile       string
+	minimal          bool
 }
 
 func main() {
@@ -29,6 +30,7 @@ func main() {
 	flag.BoolVar(&args.verbose, "verbose", false, "Enable verbose output")
 	flag.BoolVar(&args.internal, "internal", false, "Filter wordlist to only include internal hosts")
 	flag.StringVar(&args.outputFile, "o", "", "Path to save JSON results (one result per line)")
+	flag.BoolVar(&args.minimal, "minimal", false, "Skip similarity comparison for faster scanning with less CPU usage")
 	flag.Parse()
 
 	if args.targets == "" && args.targetsList == "" {
@@ -73,6 +75,7 @@ func main() {
 			Verbose:          args.verbose,
 			Internal:         args.internal,
 			OutputFile:       args.outputFile,
+			Minimal:          args.minimal,
 		},
 	)
 	defer scannerInstance.Close()

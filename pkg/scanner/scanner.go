@@ -29,6 +29,7 @@ type ScannerOptions struct {
 	Verbose          bool
 	Internal         bool
 	OutputFile       string
+	Minimal          bool
 }
 
 func NewScanner(targets []string, wordlist []string, options ScannerOptions) *Scanner {

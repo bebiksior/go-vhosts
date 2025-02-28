@@ -65,18 +65,34 @@ func (r *Requester) RequestVHost(url string, vhost string) (*FullResponse, error
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	var bodyString string
+	var bodyBytes []byte
+	var contentLength int
+
+	if r.Scanner.Options.Minimal {
+		bodyBytes = make([]byte, 8192)
+		n, _ := resp.Body.Read(bodyBytes)
+		bodyBytes = bodyBytes[:n]
+		bodyString = string(bodyBytes)
+
+		if resp.ContentLength > 0 {
+			contentLength = int(resp.ContentLength)
+		} else {
+			contentLength = n
+		}
+	} else {
+		bodyBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		bodyString = string(bodyBytes)
+		contentLength = len(bodyBytes)
+		if resp.ContentLength > 0 {
+			contentLength = int(resp.ContentLength)
+		}
 	}
 
-	bodyString := string(bodyBytes)
 	title := ExtractTitle(bodyString)
-
-	contentLength := len(bodyBytes)
-	if resp.ContentLength > 0 {
-		contentLength = int(resp.ContentLength)
-	}
 
 	return &FullResponse{
 		Body:          bodyString,
