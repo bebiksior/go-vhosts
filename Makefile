@@ -2,8 +2,8 @@
 
 build:
 	mkdir -p bin
-	go build -o bin/vhosts-go
-	cp bin/vhosts-go /usr/local/bin/vhosts-go
+	go build -o bin/go-vhosts cmd/go-vhosts/main.go
+	cp bin/go-vhosts /usr/local/bin/go-vhosts
 
 clean:
 	rm -rf bin/

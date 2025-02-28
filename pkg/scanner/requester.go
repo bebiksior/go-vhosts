@@ -1,43 +1,87 @@
 package scanner
 
 import (
+	"crypto/tls"
+	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/bebiksior/go-vhosts/pkg/utils"
+	"time"
 )
 
-func (s *Scanner) sendRequest(target string, vhost string) (Response, error) {
-	req, err := http.NewRequest("GET", target, nil)
+type FullResponse struct {
+	Body          string
+	Title         string
+	StatusCode    int
+	ContentLength int
+}
+
+type SlimResponse struct {
+	Title         string
+	StatusCode    int
+	ContentLength int
+}
+
+type Requester struct {
+	Scanner *Scanner
+}
+
+func NewRequester(scanner *Scanner) *Requester {
+	return &Requester{Scanner: scanner}
+}
+
+func (r *Requester) newHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			DisableKeepAlives:     true,
+			MaxIdleConnsPerHost:   -1,
+			ResponseHeaderTimeout: 7 * time.Second,
+			TLSHandshakeTimeout:   7 * time.Second,
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
+func (r *Requester) RequestVHost(url string, vhost string) (*FullResponse, error) {
+	r.Scanner.Log(fmt.Sprintf("Requesting %s with vhost %s", url, vhost))
+
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return Response{}, err
+		return nil, err
 	}
 
 	req.Host = vhost
-	req.Header.Set("User-Agent", s.Options.UserAgent)
+	req.Header.Set("User-Agent", "go-vhosts/1.0")
+	req.Header.Set("Connection", "close")
 
-	for key, value := range s.Options.CustomHeaders {
-		req.Header.Set(key, value)
-	}
-
-	resp, err := s.client.Do(req)
+	resp, err := r.Scanner.httpClient.Do(req)
 	if err != nil {
-		return Response{}, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return Response{}, err
+		return nil, err
 	}
 
 	bodyString := string(bodyBytes)
-	title := utils.ExtractTitle(bodyString)
+	title := ExtractTitle(bodyString)
 
-	return Response{
-		StatusCode: resp.StatusCode,
-		Body:       bodyString,
-		Title:      title,
-		Length:     len(bodyBytes),
+	contentLength := len(bodyBytes)
+	if resp.ContentLength > 0 {
+		contentLength = int(resp.ContentLength)
+	}
+
+	return &FullResponse{
+		Body:          bodyString,
+		Title:         title,
+		StatusCode:    resp.StatusCode,
+		ContentLength: contentLength,
 	}, nil
 }
